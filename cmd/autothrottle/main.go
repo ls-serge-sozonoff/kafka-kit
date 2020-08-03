@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/kafka-kit/v3/kafkametrics"
 	"github.com/DataDog/kafka-kit/v3/kafkametrics/datadog"
 	"github.com/DataDog/kafka-kit/v3/kafkazk"
+	"github.com/ls-serge-sozonoff/kafka-kit/kafkametrics/ec2cloudwatch"
 
 	"github.com/jamiealquiza/envy"
 )
@@ -21,6 +22,9 @@ import (
 var (
 	// This can be set with -ldflags "-X main.version=x.x.x"
 	version = "0.0.0"
+
+	events *DDEventWriter
+	km     kafkametrics.Handler
 
 	// Config holds configuration
 	// parameters.
@@ -44,6 +48,7 @@ var (
 		FailureThreshold   int
 		CapMap             map[string]float64
 		CleanupAfter       int64
+		MetricsSource      string
 	}
 
 	// Misc.
@@ -71,6 +76,7 @@ func main() {
 	flag.IntVar(&Config.FailureThreshold, "failure-threshold", 1, "Number of iterations that throttle determinations can fail before reverting to the min-rate")
 	m := flag.String("cap-map", "", "JSON map of instance types to network capacity in MB/s")
 	flag.Int64Var(&Config.CleanupAfter, "cleanup-after", 60, "Number of intervals after which to issue a global throttle unset if no replication is running")
+	flag.StringVar(&Config.MetricsSource, "metrics-source", "datadog", "specifiy the source for the network metrics. Options are : datadog, ec2-cloudwatch")
 
 	envy.Parse("AUTOTHROTTLE")
 	flag.Parse()
@@ -114,35 +120,44 @@ func main() {
 	}
 	defer zk.Close()
 
-	// Init a Kafka metrics fetcher.
-	km, err := datadog.NewHandler(&datadog.Config{
-		APIKey:         Config.APIKey,
-		AppKey:         Config.AppKey,
-		NetworkTXQuery: Config.NetworkTXQuery,
-		NetworkRXQuery: Config.NetworkRXQuery,
-		BrokerIDTag:    Config.BrokerIDTag,
-		MetricsWindow:  Config.MetricsWindow,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	switch source := Config.MetricsSource; source {
+	case "datadog":
+		// Init a Kafka metrics fetcher.
+		km, err = datadog.NewHandler(&datadog.Config{
+			APIKey:         Config.APIKey,
+			AppKey:         Config.AppKey,
+			NetworkTXQuery: Config.NetworkTXQuery,
+			NetworkRXQuery: Config.NetworkRXQuery,
+			BrokerIDTag:    Config.BrokerIDTag,
+			MetricsWindow:  Config.MetricsWindow,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// Get optional Datadog event tags.
-	t := strings.Split(Config.DDEventTags, ",")
-	tags := []string{"name:kafka-autothrottle"}
-	for _, tag := range t {
-		tags = append(tags, tag)
-	}
+		// Get optional Datadog event tags.
+		t := strings.Split(Config.DDEventTags, ",")
+		tags := []string{"name:kafka-autothrottle"}
+		for _, tag := range t {
+			tags = append(tags, tag)
+		}
 
-	// Init the Datadog event writer.
-	echan := make(chan *kafkametrics.Event, 100)
-	go eventWriter(km, echan)
+		// Init the Datadog event writer.
+		echan := make(chan *kafkametrics.Event, 100)
+		go eventWriter(km, echan)
 
-	// Init an DDEventWriter.
-	events := &DDEventWriter{
-		c:           echan,
-		titlePrefix: eventTitlePrefix,
-		tags:        tags,
+		// Init an DDEventWriter.
+		events = &DDEventWriter{
+			c:           echan,
+			titlePrefix: eventTitlePrefix,
+			tags:        tags,
+		}
+
+	case "ec2-cloudwatch":
+		km, err = ec2cloudwatch.NewHandler(&ec2cloudwatch.Config{
+			BrokerIDTag: Config.BrokerIDTag,
+			AWSRegion:   "eu-west-1",
+		})
 	}
 
 	// Default to true on startup in case throttles were set in  an autothrottle
