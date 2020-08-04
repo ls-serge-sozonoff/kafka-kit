@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/kafka-kit/v3/kafkametrics/datadog"
 	"github.com/DataDog/kafka-kit/v3/kafkametrics/ec2cloudwatch"
 	"github.com/DataDog/kafka-kit/v3/kafkazk"
+	"github.com/ls-serge-sozonoff/kafka-kit/kafkametrics/ec2cloudwatch"
 
 	"github.com/jamiealquiza/envy"
 )
