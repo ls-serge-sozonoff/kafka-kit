@@ -5,8 +5,10 @@ go 1.13
 require (
 	github.com/DataDog/kafka-kit v3.1.0+incompatible // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/aws/aws-sdk-go v1.33.18
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/confluentinc/confluent-kafka-go v1.4.2
+	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/protobuf v1.4.2
 	github.com/grpc-ecosystem/grpc-gateway v1.14.6
 	github.com/jamiealquiza/envy v1.1.0
@@ -25,3 +27,5 @@ require (
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
+
+replace github.com/DataDog/kafka-kit/v3 => github.com/ls-serge-sozonoff/kafka-kit v3.9.9+incompatible
